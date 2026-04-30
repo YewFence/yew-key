@@ -1,0 +1,50 @@
+import { defineConfig } from 'vitepress'
+
+export default defineConfig({
+  base: '/yew-key/',
+  lang: 'zh-CN',
+  title: 'yewk',
+  description: 'a cli to sync your secrets to anywhere, use system keyring to store safely',
+
+  themeConfig: {
+    nav: [
+      { text: 'Shell 补全', link: '/guide/completion' },
+      { text: 'GitHub', link: 'https://github.com/YewFence/yew-key' }
+    ],
+
+    sidebar: [
+      {
+        text: '指南',
+        items: [
+          { text: 'Shell 补全', link: '/guide/completion' }
+        ]
+      }
+    ],
+
+    search: {
+      provider: 'local'
+    },
+
+    socialLinks: [
+      { icon: 'github', link: 'https://github.com/YewFence/yew-key' }
+    ],
+
+    footer: {
+      message: 'Released under the MIT License.',
+      copyright: 'Copyright © YewFence'
+    },
+
+    docFooter: {
+      prev: '上一页',
+      next: '下一页'
+    },
+
+    outline: {
+      label: '本页目录'
+    },
+
+    lastUpdated: {
+      text: '最后更新'
+    }
+  }
+})
