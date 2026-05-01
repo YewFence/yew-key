@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,6 +44,56 @@ func TestCompletionCommand(t *testing.T) {
 
 	if got := buffer.String(); !strings.Contains(got, "# bash completion V2 for yewk") {
 		t.Fatalf("unexpected completion output: %q", got)
+	}
+}
+
+func TestHelpIncludesAuthTokenHints(t *testing.T) {
+	for _, args := range [][]string{
+		{"--help"},
+		{"sync", "--help"},
+	} {
+		output := executeTestCommand(t, runtimeDeps{}, args...)
+		for _, want := range []string{"INFISICAL_TOKEN", "BAO_TOKEN", "VAULT_TOKEN"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("help %v missing %q:\n%s", args, want, output)
+			}
+		}
+	}
+}
+
+func TestProfileCommandPrintsConfigPath(t *testing.T) {
+	isolateXDG(t)
+
+	output := executeTestCommand(t, runtimeDeps{}, "profile")
+
+	if !strings.Contains(output, "config.toml") || strings.Contains(output, "Manage profiles") {
+		t.Fatalf("profile output = %q", output)
+	}
+}
+
+func TestProfileEditSplitsEditorCommand(t *testing.T) {
+	isolateXDG(t)
+	binDir := t.TempDir()
+	argsPath := filepath.Join(t.TempDir(), "args")
+	editorPath := filepath.Join(binDir, "fake-editor")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$YEWK_TEST_EDITOR_ARGS\"\n"
+	if err := os.WriteFile(editorPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "fake-editor --wait")
+	t.Setenv("YEWK_TEST_EDITOR_ARGS", argsPath)
+
+	executeTestCommand(t, runtimeDeps{}, "profile", "edit")
+
+	data, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 || lines[0] != "--wait" || !strings.HasSuffix(lines[1], filepath.Join("yewk", "config.toml")) {
+		t.Fatalf("editor args = %#v", lines)
 	}
 }
 

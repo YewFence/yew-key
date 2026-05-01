@@ -23,7 +23,7 @@ func PromptProfile(input io.Reader, output io.Writer, initial appconfig.Profile)
 	if initial.KeyringService == "" {
 		initial.KeyringService = "yewk"
 	}
-	initial.KeyringService, err = prompt(reader, output, "Keyring service", initial.KeyringService)
+	initial.KeyringService, err = prompt(reader, output, "Local keyring namespace", initial.KeyringService)
 	if err != nil {
 		return appconfig.Profile{}, err
 	}
@@ -99,14 +99,14 @@ func prompt(reader *bufio.Reader, output io.Writer, label string, defaultValue s
 func promptMappings(reader *bufio.Reader, output io.Writer) ([]appconfig.EnvMapping, error) {
 	var mappings []appconfig.EnvMapping
 	for {
-		remoteKey, err := prompt(reader, output, "Remote key empty to finish", "")
+		remoteKey, err := prompt(reader, output, "Remote secret key, press Enter when done", "")
 		if err != nil {
 			return nil, err
 		}
 		if remoteKey == "" {
 			break
 		}
-		envName, err := prompt(reader, output, "Env name", remoteKey)
+		envName, err := prompt(reader, output, "Local Env name", remoteKey)
 		if err != nil {
 			return nil, err
 		}

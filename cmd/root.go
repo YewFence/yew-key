@@ -17,9 +17,19 @@ import (
 	"github.com/YewFence/yew-key/internal/shellenv"
 	appstate "github.com/YewFence/yew-key/internal/state"
 	"github.com/spf13/cobra"
+	shshell "mvdan.cc/sh/v3/shell"
 )
 
 var appVersion = "dev"
+
+const authHelp = `yewk does not sign in to remote secret managers or store their auth tokens.
+Before running sync, provide the token in the current shell.
+
+Infisical uses INFISICAL_TOKEN.
+  export INFISICAL_TOKEN="$(infisical user get token --plain)"
+
+OpenBao uses BAO_TOKEN or VAULT_TOKEN.
+  export BAO_TOKEN="..."`
 
 type runtimeDeps struct {
 	providers provider.Factory
@@ -47,7 +57,7 @@ func newRootCommand(deps runtimeDeps) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "yewk",
 		Short: "a cli to sync your secrets to anywhere, use system keyring to store safely",
-		Long:  "a cli to sync your secrets to anywhere, use system keyring to store safely.",
+		Long:  "a cli to sync your secrets to anywhere, use system keyring to store safely.\n\n" + authHelp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
@@ -106,6 +116,15 @@ func newProfileCommand(deps runtimeDeps) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "profile",
 		Short: "Manage profiles",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path, err := appconfig.Path()
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), path)
+			return err
+		},
 	}
 	command.AddCommand(newProfileAddCommand(deps))
 	command.AddCommand(newProfileEditCommand())
@@ -187,7 +206,12 @@ func newProfileEditCommand() *cobra.Command {
 				_, err := fmt.Fprintf(cmd.OutOrStdout(), "config file is %s\n", path)
 				return err
 			}
-			editorCommand := exec.Command(editor, path)
+			editorFields, err := splitEditorCommand(editor)
+			if err != nil {
+				return err
+			}
+			editorArgs := append(editorFields[1:], path)
+			editorCommand := exec.Command(editorFields[0], editorArgs...)
 			editorCommand.Stdin = os.Stdin
 			editorCommand.Stdout = os.Stdout
 			editorCommand.Stderr = os.Stderr
@@ -200,6 +224,7 @@ func newSyncCommand(deps runtimeDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync <profile>",
 		Short: "Sync secrets into local keyring",
+		Long:  "Sync secrets from the configured remote provider into local keyring.\n\n" + authHelp,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_, profile, _, err := loadProfile(args[0])
@@ -324,4 +349,15 @@ func defaultEditor() string {
 		}
 	}
 	return ""
+}
+
+func splitEditorCommand(editor string) ([]string, error) {
+	fields, err := shshell.Fields(editor, os.Getenv)
+	if err != nil {
+		return nil, fmt.Errorf("parse editor command %q: %w", editor, err)
+	}
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("editor command is empty")
+	}
+	return fields, nil
 }
