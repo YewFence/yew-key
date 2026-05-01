@@ -8,6 +8,7 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
+      { text: '快速开始', link: '/guide/usage' },
       { text: 'Shell 补全', link: '/guide/completion' },
       { text: 'GitHub', link: 'https://github.com/YewFence/yew-key' }
     ],
@@ -16,6 +17,7 @@ export default defineConfig({
       {
         text: '指南',
         items: [
+          { text: '快速开始', link: '/guide/usage' },
           { text: 'Shell 补全', link: '/guide/completion' }
         ]
       }

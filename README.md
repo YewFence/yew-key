@@ -4,7 +4,7 @@
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://YewFence.github.io/yew-key/)
 [![License](https://img.shields.io/github/license/YewFence/yew-key)](LICENSE)
 
-a cli to sync your secrets to anywhere, use system keyring to store safely
+a cli to sync your secrets from trusted secret managers into your local system keyring
 
 > [!NOTE]
 > 本项目目前处于早期开发阶段，核心功能可能缺失，无法保证向后兼容性。
@@ -32,19 +32,88 @@ mise run build
 
 ### 使用
 
-```bash
-yewk
-yewk version
-```
-
-生成 Shell 补全脚本。
+创建一个 profile，profile 只保存 provider、项目、环境、路径和变量映射这类非敏感配置。
 
 ```bash
-yewk completion zsh > _yewk
-yewk completion bash > yewk.bash
-yewk completion fish > yewk.fish
-yewk completion powershell > yewk.ps1
+yewk profile add
 ```
+
+同步远端 secret 到本机系统 keyring。Infisical 认证读取当前进程里的 `INFISICAL_TOKEN`，OpenBao 认证读取 `BAO_TOKEN` 或 `VAULT_TOKEN`，yewk 不会保存这些认证材料。
+
+```bash
+export INFISICAL_TOKEN="$(infisical login --method=universal-auth --client-id ... --client-secret ... --silent --plain)"
+yewk sync work
+```
+
+查看当前 profile 会加载哪些环境变量，默认不会把 secret value 打到终端。
+
+```bash
+yewk env work --shell zsh
+```
+
+明确需要加载到 shell 时再使用 `--reveal`。
+
+```bash
+eval "$(yewk env work --shell zsh --reveal)"
+```
+
+查看同步状态。
+
+```bash
+yewk status work
+```
+
+生成 Shell 补全脚本可参考[Shell 补全文档](docs/guide/completion.md)。
+
+## 配置示例
+
+配置文件默认放在 XDG 配置目录的 `yewk/config.toml`。下面是 Infisical profile 示例。
+
+```toml
+[[profiles]]
+name = "work"
+provider = "infisical"
+keyring_service = "yewk"
+
+[profiles.infisical]
+site_url = "https://app.infisical.com"
+project_id = "..."
+environment = "dev"
+secret_path = "/"
+recursive = true
+include_imports = true
+
+[[profiles.env]]
+remote_key = "DATABASE_URL"
+env_name = "DATABASE_URL"
+
+[[profiles.env]]
+remote_key = "OPENAI_API_KEY"
+env_name = "OPENAI_API_KEY"
+```
+
+下面是 OpenBao KV v2 profile 示例。
+
+```toml
+[[profiles]]
+name = "bao-dev"
+provider = "openbao"
+keyring_service = "yewk"
+
+[profiles.openbao]
+address = "https://bao.example.com"
+mount = "secret"
+path = "apps/api"
+kv_version = 2
+
+[[profiles.env]]
+remote_key = "DATABASE_URL"
+env_name = "DATABASE_URL"
+```
+
+## 安全边界
+
+yewk 只把业务 secret 的本地副本写入系统 keyring，不保存 Infisical token、OpenBao token、machine identity client secret 或 AppRole secret id。`env` 默认只输出变量名，`--reveal` 输出的内容会进入当前 shell 环境，并按环境变量机制被子进程继承。
 
 ## 文档
 

@@ -3,21 +3,21 @@ layout: home
 
 hero:
   name: 'yewk'
-  text: 'a cli to sync your secrets to anywhere, use system keyring to store safely'
-  tagline: '轻量、可发布的 Go 命令行工具。'
+  text: '把远端 secrets 同步到本机系统 keyring'
+  tagline: '从 Infisical 或 OpenBao 拉取 secret，本机只保存受 keyring 保护的副本，shell 启动时快速加载。'
   actions:
     - theme: brand
-      text: GitHub Repo
-      link: https://github.com/YewFence/yew-key
+      text: 快速开始
+      link: /guide/usage
     - theme: alt
       text: Shell 补全
       link: /guide/completion
 
 features:
-  - title: 安装
-    details: 请参考仓库 README 中的安装方式，按需使用 mise 或从源码构建。
-  - title: 使用
-    details: README 会覆盖常用命令和基础示例，文档站只补充适合线上查阅的内容。
-  - title: Shell 补全
-    details: 支持生成 Bash、Zsh、Fish 和 PowerShell 补全脚本。
+  - title: 本地缓存
+    details: sync 从远端读取 secret 并写入系统 keyring，远端仍然是可信源。
+  - title: 默认隐藏
+    details: env 默认只显示变量名，只有传入 --reveal 才输出可执行的 export 脚本。
+  - title: 明确映射
+    details: profile 通过 TOML 描述远端 key 到环境变量名的映射，避免把全部远端 key 灌进 shell。
 ---

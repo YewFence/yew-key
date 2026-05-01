@@ -1,6 +1,6 @@
 # Shell 补全
 
-yewk 使用 Cobra 原生补全能力，不需要额外引入生成工具。
+yewk 使用 Cobra 原生补全能力，不需要额外生成工具。
 
 ## 生成补全脚本
 
@@ -42,4 +42,11 @@ Fish 可以直接写入用户补全目录。
 ```bash
 mkdir -p ~/.config/fish/completions
 ./bin/yewk completion fish > ~/.config/fish/completions/yewk.fish
+```
+
+PowerShell 可以生成脚本后在 profile 中加载。
+
+```powershell
+./bin/yewk completion powershell > yewk.ps1
+. ./yewk.ps1
 ```
