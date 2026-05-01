@@ -1,25 +1,16 @@
 [tools]
 # https://go.dev/
 go = "1.25"
-
 # https://nodejs.org/
 node = "24"
-
 # https://github.com/azat-io/actions-up
 "npm:actions-up" = "1"
-
 # https://github.com/paulhatch/semantic-version
 "npm:@semanticversion/cli" = "latest"
-
 # https://pnpm.io/
 pnpm = "10"
-
 # https://golangci-lint.run/
 golangci-lint = "2"
-
-[tasks.init]
-description = "初始化模板中的项目名称、模块路径和仓库信息"
-run = "GO111MODULE=off go run ./tools/init-template/main.go --fresh-git"
 
 [tasks.tidy]
 description = "整理 Go 模块依赖"
