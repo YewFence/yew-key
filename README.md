@@ -1,4 +1,4 @@
-# yewk
+# yew-key
 
 [![Release](https://img.shields.io/github/v/release/YewFence/yew-key?sort=semver)](https://github.com/YewFence/yew-key/releases)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://YewFence.github.io/yew-key/)
@@ -20,6 +20,12 @@ a cli to sync your secrets from trusted secret managers into your local system k
 mise use github:YewFence/yew-key
 ```
 
+#### Go
+
+```bash
+go install github.com/YewFence/yew-key/cmd/yewk@latest
+```
+
 #### 从源码构建
 
 ```bash
@@ -32,30 +38,32 @@ mise run build
 
 ### 使用
 
-创建一个 profile，profile 只保存 provider、项目、环境、路径和变量映射这类非敏感配置。
+1. 交互式创建一个 profile，配置 secrets 的 provider 与 Provider 中的各个参数，例如ProjectId、环境名称、路径和变量映射等。
+
+> 不会存储认证材料
 
 ```bash
 yewk profile add
 ```
 
-同步远端 secret 到本机系统 keyring。Infisical 认证读取当前进程里的 `INFISICAL_TOKEN`，OpenBao 认证读取 `BAO_TOKEN` 或 `VAULT_TOKEN`，yewk 不会保存这些认证材料。
+2. 同步远端 secret 到本机系统 keyring。Infisical 认证读取当前进程里的 `INFISICAL_TOKEN`，OpenBao 认证读取 `BAO_TOKEN` 或 `VAULT_TOKEN`。
 
 ```bash
-export INFISICAL_TOKEN="$(infisical login --method=universal-auth --client-id ... --client-secret ... --silent --plain)"
+infisical login
+export INFISICAL_TOKEN=$(infisical user get token --plain)
 yewk sync work
 ```
 
-查看当前 profile 会加载哪些环境变量，默认不会把 secret value 打到终端。
+3. 查看当前 profile 会加载哪些环境变量，默认不会把 secret value 打到终端。
 
 ```bash
 yewk env work --shell zsh
 ```
 
-明确需要加载到 shell 时再使用 `--reveal`。
-
-```bash
-eval "$(yewk env work --shell zsh --reveal)"
-```
+> 使用 `--reveal` 可以查看 secret 的值。
+> ```bash
+> yewk env work --shell zsh --reveal
+> ```
 
 查看同步状态。
 
@@ -63,7 +71,11 @@ eval "$(yewk env work --shell zsh --reveal)"
 yewk status work
 ```
 
-生成 Shell 补全脚本可参考[Shell 补全文档](docs/guide/completion.md)。
+将如下命令添加到 shell 配置文件中（如 `~/.zshrc`），每次打开新 shell 时会自动从 system keyring 加载环境变量，无需联网/认证。
+
+```bash
+eval $(yewk env work --shell zsh --reveal)
+```
 
 ## 配置示例
 
@@ -113,7 +125,9 @@ env_name = "DATABASE_URL"
 
 ## 安全边界
 
-yewk 只把业务 secret 的本地副本写入系统 keyring，不保存 Infisical token、OpenBao token、machine identity client secret 或 AppRole secret id。`env` 默认只输出变量名，`--reveal` 输出的内容会进入当前 shell 环境，并按环境变量机制被子进程继承。
+1. yewk 只把业务 secret 的本地副本写入系统 keyring，不保存 Infisical token、OpenBao token、machine identity client secret 或 AppRole secret id。
+2. `env` 默认只输出变量名，`--reveal` 输出的内容会进入当前 shell 环境，并按环境变量机制被子进程继承。
+3. 只在显式执行 `sync` 命令时才会连接网络从远端 secret manager 获取 secret 并写入系统 keyring，`env` 和 `status` 等命令不会联网。
 
 ## 文档
 

@@ -38,7 +38,7 @@ yewk profile add \
   --env DATABASE_URL=DATABASE_URL
 ```
 
-需要直接修改配置时使用编辑命令。
+需要直接修改配置时使用编辑命令，会使用 `$EDITOR` 环境变量指定的编辑器打开配置文件。
 
 ```bash
 yewk profile edit
