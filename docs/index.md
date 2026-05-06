@@ -12,6 +12,9 @@ hero:
     - theme: alt
       text: Shell 补全
       link: /guide/completion
+    - theme: alt
+      text: 卸载
+      link: /guide/uninstall
 
 features:
   - title: 本地缓存
