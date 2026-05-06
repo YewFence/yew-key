@@ -147,6 +147,51 @@ func TestProfileAddSyncAndEnv(t *testing.T) {
 	}
 }
 
+func TestCleanRemovesCachedSecretsAndState(t *testing.T) {
+	isolateXDG(t)
+	store := newMemoryStore()
+	deps := runtimeDeps{
+		providers: fakeFactory{providerName: "infisical", provider: fakeProvider{
+			secrets: []provider.Secret{
+				{RemoteKey: "DATABASE_URL", EnvName: "DATABASE_URL", Value: "postgres://local?sslmode=disable", Version: "7"},
+				{RemoteKey: "OPENAI_API_KEY", EnvName: "OPENAI_API_KEY", Value: "sk-test", Version: "2"},
+			},
+		}},
+		keyrings: fakeOpener{store: store},
+	}
+
+	executeTestCommand(t, deps,
+		"profile", "add",
+		"--name", "work",
+		"--provider", "infisical",
+		"--infisical-project-id", "project",
+		"--infisical-environment", "dev",
+		"--env", "DATABASE_URL=DATABASE_URL",
+		"--env", "OPENAI_API_KEY=OPENAI_API_KEY",
+	)
+	executeTestCommand(t, deps, "sync", "work")
+
+	output := executeTestCommand(t, deps, "clean", "work")
+	if !strings.Contains(output, "cleaned 2 cached variables for profile work") {
+		t.Fatalf("clean output = %q", output)
+	}
+	if len(store.values) != 0 || len(store.index.Variables) != 0 {
+		t.Fatalf("clean left cached values: %#v %#v", store.values, store.index)
+	}
+
+	output = executeTestCommand(t, deps, "env", "work", "--shell", "zsh", "--reveal")
+	if strings.Contains(output, "postgres://") || strings.Contains(output, "sk-test") || strings.Contains(output, "export DATABASE_URL=") {
+		t.Fatalf("env reveal after clean leaked cached values:\n%s", output)
+	}
+
+	output = executeTestCommand(t, deps, "status", "work")
+	for _, want := range []string{"profile work has not synced successfully yet", "variables: 0"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("status after clean missing %q:\n%s", want, output)
+		}
+	}
+}
+
 func TestProfileAddInteractive(t *testing.T) {
 	isolateXDG(t)
 	deps := runtimeDeps{
@@ -234,6 +279,13 @@ func (store *memoryStore) SyncProfile(profile appconfig.Profile, secrets []provi
 	}
 	store.index = index
 	return index, nil
+}
+
+func (store *memoryStore) CleanProfile(profile appconfig.Profile) (int, error) {
+	removed := len(store.values)
+	store.values = map[string]string{}
+	store.index = keyringstore.Index{Profile: profile.Name}
+	return removed, nil
 }
 
 func (store *memoryStore) Index(appconfig.Profile) (keyringstore.Index, error) {

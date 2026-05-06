@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/99designs/keyring"
@@ -28,6 +29,7 @@ type Index struct {
 
 type Store interface {
 	SyncProfile(profile appconfig.Profile, secrets []provider.Secret) (Index, error)
+	CleanProfile(profile appconfig.Profile) (int, error)
 	Index(profile appconfig.Profile) (Index, error)
 	ReadValue(profile appconfig.Profile, envName string) (string, error)
 }
@@ -108,6 +110,27 @@ func (store StoreBackend) SyncProfile(profile appconfig.Profile, secrets []provi
 	return index, nil
 }
 
+func (store StoreBackend) CleanProfile(profile appconfig.Profile) (int, error) {
+	itemKeys, err := store.cachedSecretKeys(profile)
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	for _, itemKey := range itemKeys {
+		if err := store.ring.Remove(itemKey); err != nil {
+			if errors.Is(err, keyring.ErrKeyNotFound) {
+				continue
+			}
+			return removed, fmt.Errorf("remove cached secret %s for profile %s: %w", itemKey, profile.Name, err)
+		}
+		removed++
+	}
+	if err := store.ring.Remove(indexItemKey(profile.Name)); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
+		return removed, fmt.Errorf("remove metadata index for profile %s: %w", profile.Name, err)
+	}
+	return removed, nil
+}
+
 func (store StoreBackend) Index(profile appconfig.Profile) (Index, error) {
 	item, err := store.ring.Get(indexItemKey(profile.Name))
 	if errors.Is(err, keyring.ErrKeyNotFound) {
@@ -131,6 +154,36 @@ func (store StoreBackend) ReadValue(profile appconfig.Profile, envName string) (
 	return string(item.Data), nil
 }
 
+func (store StoreBackend) cachedSecretKeys(profile appconfig.Profile) ([]string, error) {
+	itemKeys := map[string]struct{}{}
+	index, indexErr := store.Index(profile)
+	if indexErr == nil {
+		for _, variable := range index.Variables {
+			itemKeys[envItemKey(profile.Name, variable.EnvName)] = struct{}{}
+		}
+	}
+	ringKeys, keysErr := store.ring.Keys()
+	if keysErr == nil {
+		prefix := envItemPrefix(profile.Name)
+		for _, itemKey := range ringKeys {
+			if strings.HasPrefix(itemKey, prefix) {
+				itemKeys[itemKey] = struct{}{}
+			}
+		}
+	} else if indexErr != nil {
+		return nil, fmt.Errorf("list keyring keys for profile %s: %w", profile.Name, keysErr)
+	}
+	if len(itemKeys) == 0 {
+		return nil, nil
+	}
+	keys := make([]string, 0, len(itemKeys))
+	for itemKey := range itemKeys {
+		keys = append(keys, itemKey)
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
 func (store StoreBackend) timeNow() time.Time {
 	if store.now != nil {
 		return store.now()
@@ -144,4 +197,8 @@ func indexItemKey(profile string) string {
 
 func envItemKey(profile string, envName string) string {
 	return path.Join("profiles", profile, "env", envName)
+}
+
+func envItemPrefix(profile string) string {
+	return path.Join("profiles", profile, "env") + "/"
 }

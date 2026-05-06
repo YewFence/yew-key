@@ -65,6 +65,7 @@ func newRootCommand(deps runtimeDeps) *cobra.Command {
 	command.AddCommand(newVersionCommand())
 	command.AddCommand(newProfileCommand(deps))
 	command.AddCommand(newSyncCommand(deps))
+	command.AddCommand(newCleanCommand(deps))
 	command.AddCommand(newEnvCommand(deps))
 	command.AddCommand(newStatusCommand(deps))
 	return command
@@ -122,7 +123,7 @@ func newProfileCommand(deps runtimeDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), path)
+			_, err = fmt.Fprint(cmd.OutOrStdout(), path)
 			return err
 		},
 	}
@@ -259,6 +260,38 @@ func newSyncCommand(deps runtimeDeps) *cobra.Command {
 				return err
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "synced %d variables for profile %s\n", len(index.Variables), profile.Name)
+			return err
+		},
+	}
+}
+
+func newCleanCommand(deps runtimeDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "clean <profile>",
+		Short: "Delete cached secrets from local keyring",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, profile, _, err := loadProfile(args[0])
+			if err != nil {
+				return err
+			}
+			store, err := openStore(deps, profile)
+			if err != nil {
+				return err
+			}
+			removed, err := store.CleanProfile(profile)
+			if err != nil {
+				return err
+			}
+			if err := updateProfileState(profile.Name, func(profileState *appstate.ProfileState) {
+				profileState.LastSuccess = time.Time{}
+				profileState.LastError = ""
+				profileState.Cursor = provider.SyncCursor{}
+				profileState.Variables = nil
+			}); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "cleaned %d cached variables for profile %s\n", removed, profile.Name)
 			return err
 		},
 	}
