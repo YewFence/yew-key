@@ -97,6 +97,29 @@ func loadProfile(name string) (appconfig.Config, appconfig.Profile, string, erro
 	return cfg, profile, path, nil
 }
 
+func loadConfiguredProfile(name string) (appconfig.Profile, error) {
+	cfg, path, err := appconfig.Load()
+	if err != nil {
+		return appconfig.Profile{}, err
+	}
+	profile, ok := cfg.Profile(name)
+	if !ok {
+		return appconfig.Profile{}, fmt.Errorf("profile %q not found in %s", name, path)
+	}
+	profile, err = cleanableProfile(profile)
+	if err != nil {
+		return appconfig.Profile{}, err
+	}
+	return profile, nil
+}
+
+func cleanableProfile(profile appconfig.Profile) (appconfig.Profile, error) {
+	if profile.Name == "" {
+		return appconfig.Profile{}, fmt.Errorf("profile name is required")
+	}
+	return appconfig.NormalizeProfile(profile), nil
+}
+
 func openStore(deps runtimeDeps, profile appconfig.Profile) (keyringstore.Store, error) {
 	return deps.keyrings.Open(appconfig.DefaultKeyringService(profile))
 }
@@ -109,6 +132,16 @@ func updateProfileState(profileName string, mutate func(*appstate.ProfileState))
 	profileState := state.Profiles[profileName]
 	mutate(&profileState)
 	state.Profiles[profileName] = profileState
+	_, err = appstate.Save(state)
+	return err
+}
+
+func clearProfileState(profileName string) error {
+	state, _, err := appstate.Load()
+	if err != nil {
+		return err
+	}
+	delete(state.Profiles, profileName)
 	_, err = appstate.Save(state)
 	return err
 }
@@ -266,35 +299,72 @@ func newSyncCommand(deps runtimeDeps) *cobra.Command {
 }
 
 func newCleanCommand(deps runtimeDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "clean <profile>",
+	var all bool
+	command := &cobra.Command{
+		Use:   "clean [profile]",
 		Short: "Delete cached secrets from local keyring",
-		Args:  cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if all {
+				if len(args) != 0 {
+					return fmt.Errorf("--all cannot be used with a profile")
+				}
+				return nil
+			}
+			if len(args) != 1 {
+				return fmt.Errorf("requires a profile unless --all is set")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, profile, _, err := loadProfile(args[0])
+			if all {
+				cfg, _, err := appconfig.Load()
+				if err != nil {
+					return err
+				}
+				totalRemoved := 0
+				for _, profile := range cfg.Profiles {
+					profile, err = cleanableProfile(profile)
+					if err != nil {
+						return err
+					}
+					removed, err := cleanProfile(deps, profile)
+					if err != nil {
+						return err
+					}
+					totalRemoved += removed
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "cleaned %d cached variables for %d profiles\n", totalRemoved, len(cfg.Profiles))
+				return err
+			}
+			profile, err := loadConfiguredProfile(args[0])
 			if err != nil {
 				return err
 			}
-			store, err := openStore(deps, profile)
+			removed, err := cleanProfile(deps, profile)
 			if err != nil {
-				return err
-			}
-			removed, err := store.CleanProfile(profile)
-			if err != nil {
-				return err
-			}
-			if err := updateProfileState(profile.Name, func(profileState *appstate.ProfileState) {
-				profileState.LastSuccess = time.Time{}
-				profileState.LastError = ""
-				profileState.Cursor = provider.SyncCursor{}
-				profileState.Variables = nil
-			}); err != nil {
 				return err
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "cleaned %d cached variables for profile %s\n", removed, profile.Name)
 			return err
 		},
 	}
+	command.Flags().BoolVar(&all, "all", false, "delete cached secrets for all configured profiles")
+	return command
+}
+
+func cleanProfile(deps runtimeDeps, profile appconfig.Profile) (int, error) {
+	store, err := openStore(deps, profile)
+	if err != nil {
+		return 0, err
+	}
+	removed, err := store.CleanProfile(profile)
+	if err != nil {
+		return removed, err
+	}
+	if err := clearProfileState(profile.Name); err != nil {
+		return removed, err
+	}
+	return removed, nil
 }
 
 func newEnvCommand(deps runtimeDeps) *cobra.Command {

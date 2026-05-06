@@ -175,8 +175,8 @@ func TestCleanRemovesCachedSecretsAndState(t *testing.T) {
 	if !strings.Contains(output, "cleaned 2 cached variables for profile work") {
 		t.Fatalf("clean output = %q", output)
 	}
-	if len(store.values) != 0 || len(store.index.Variables) != 0 {
-		t.Fatalf("clean left cached values: %#v %#v", store.values, store.index)
+	if len(store.values["work"]) != 0 || len(store.indices["work"].Variables) != 0 {
+		t.Fatalf("clean left cached values: %#v %#v", store.values, store.indices)
 	}
 
 	output = executeTestCommand(t, deps, "env", "work", "--shell", "zsh", "--reveal")
@@ -188,6 +188,49 @@ func TestCleanRemovesCachedSecretsAndState(t *testing.T) {
 	for _, want := range []string{"profile work has not synced successfully yet", "variables: 0"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("status after clean missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestCleanAllRemovesEveryConfiguredProfile(t *testing.T) {
+	isolateXDG(t)
+	store := newMemoryStore()
+	deps := runtimeDeps{
+		providers: fakeFactory{providerName: "infisical", provider: fakeProvider{
+			secrets: []provider.Secret{
+				{RemoteKey: "DATABASE_URL", EnvName: "DATABASE_URL", Value: "postgres://local?sslmode=disable", Version: "7"},
+				{RemoteKey: "OPENAI_API_KEY", EnvName: "OPENAI_API_KEY", Value: "sk-test", Version: "2"},
+			},
+		}},
+		keyrings: fakeOpener{store: store},
+	}
+
+	for _, name := range []string{"work", "ops"} {
+		executeTestCommand(t, deps,
+			"profile", "add",
+			"--name", name,
+			"--provider", "infisical",
+			"--infisical-project-id", "project",
+			"--infisical-environment", "dev",
+			"--env", "DATABASE_URL=DATABASE_URL",
+			"--env", "OPENAI_API_KEY=OPENAI_API_KEY",
+		)
+		executeTestCommand(t, deps, "sync", name)
+	}
+
+	output := executeTestCommand(t, deps, "clean", "--all")
+	if !strings.Contains(output, "cleaned 4 cached variables for 2 profiles") {
+		t.Fatalf("clean all output = %q", output)
+	}
+	for _, name := range []string{"work", "ops"} {
+		if len(store.values[name]) != 0 || len(store.indices[name].Variables) != 0 {
+			t.Fatalf("clean all left cached values for %s: %#v %#v", name, store.values, store.indices)
+		}
+		output = executeTestCommand(t, deps, "status", name)
+		for _, want := range []string{"profile " + name + " has not synced successfully yet", "variables: 0"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("status after clean all missing %q:\n%s", want, output)
+			}
 		}
 	}
 }
@@ -258,18 +301,24 @@ func (opener fakeOpener) Open(string) (keyringstore.Store, error) {
 }
 
 type memoryStore struct {
-	index  keyringstore.Index
-	values map[string]string
+	indices map[string]keyringstore.Index
+	values  map[string]map[string]string
 }
 
 func newMemoryStore() *memoryStore {
-	return &memoryStore{values: map[string]string{}}
+	return &memoryStore{
+		indices: map[string]keyringstore.Index{},
+		values:  map[string]map[string]string{},
+	}
 }
 
 func (store *memoryStore) SyncProfile(profile appconfig.Profile, secrets []provider.Secret) (keyringstore.Index, error) {
 	index := keyringstore.Index{Profile: profile.Name}
+	if store.values[profile.Name] == nil {
+		store.values[profile.Name] = map[string]string{}
+	}
 	for _, secret := range secrets {
-		store.values[secret.EnvName] = secret.Value
+		store.values[profile.Name][secret.EnvName] = secret.Value
 		index.Variables = append(index.Variables, keyringstore.Variable{
 			EnvName:   secret.EnvName,
 			RemoteKey: secret.RemoteKey,
@@ -277,23 +326,23 @@ func (store *memoryStore) SyncProfile(profile appconfig.Profile, secrets []provi
 			Version:   secret.Version,
 		})
 	}
-	store.index = index
+	store.indices[profile.Name] = index
 	return index, nil
 }
 
 func (store *memoryStore) CleanProfile(profile appconfig.Profile) (int, error) {
-	removed := len(store.values)
-	store.values = map[string]string{}
-	store.index = keyringstore.Index{Profile: profile.Name}
+	removed := len(store.values[profile.Name])
+	delete(store.values, profile.Name)
+	store.indices[profile.Name] = keyringstore.Index{Profile: profile.Name}
 	return removed, nil
 }
 
-func (store *memoryStore) Index(appconfig.Profile) (keyringstore.Index, error) {
-	return store.index, nil
+func (store *memoryStore) Index(profile appconfig.Profile) (keyringstore.Index, error) {
+	return store.indices[profile.Name], nil
 }
 
-func (store *memoryStore) ReadValue(_ appconfig.Profile, envName string) (string, error) {
-	return store.values[envName], nil
+func (store *memoryStore) ReadValue(profile appconfig.Profile, envName string) (string, error) {
+	return store.values[profile.Name][envName], nil
 }
 
 type assertError string
