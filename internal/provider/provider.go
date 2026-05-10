@@ -69,11 +69,11 @@ func (InfisicalProvider) Fetch(ctx context.Context, profile appconfig.Profile) (
 		secretPath = "/"
 	}
 
-	client := infisical.NewInfisicalClient(ctx, infisical.Config{
-		SiteUrl:          siteURL,
-		AutoTokenRefresh: false,
-		SilentMode:       true,
-	})
+	config, err := infisicalClientConfig(siteURL)
+	if err != nil {
+		return nil, SyncCursor{}, err
+	}
+	client := infisical.NewInfisicalClient(ctx, config)
 	client.Auth().SetAccessToken(token)
 
 	result, err := client.Secrets().ListSecrets(infisical.ListSecretsOptions{
@@ -103,6 +103,42 @@ func (InfisicalProvider) Fetch(ctx context.Context, profile appconfig.Profile) (
 		return nil, SyncCursor{}, err
 	}
 	return secrets, SyncCursor{ETag: result.ETag}, nil
+}
+
+func infisicalClientConfig(siteURL string) (infisical.Config, error) {
+	customHeaders, err := parseInfisicalCustomHeaders(os.Getenv("INFISICAL_CUSTOM_HEADERS"))
+	if err != nil {
+		return infisical.Config{}, err
+	}
+	return infisical.Config{
+		SiteUrl:          siteURL,
+		AutoTokenRefresh: false,
+		SilentMode:       true,
+		CustomHeaders:    customHeaders,
+	}, nil
+}
+
+func parseInfisicalCustomHeaders(raw string) (map[string]string, error) {
+	fields := strings.Fields(raw)
+	if len(fields) == 0 {
+		return nil, nil
+	}
+
+	headers := make(map[string]string, len(fields))
+	for index, field := range fields {
+		name, value, ok := strings.Cut(field, "=")
+		if !ok {
+			return nil, fmt.Errorf("INFISICAL_CUSTOM_HEADERS entry %d must use header=value format", index+1)
+		}
+		if strings.TrimSpace(name) == "" {
+			return nil, fmt.Errorf("INFISICAL_CUSTOM_HEADERS entry %d is missing a header name", index+1)
+		}
+		if value == "" {
+			return nil, fmt.Errorf("INFISICAL_CUSTOM_HEADERS entry %d is missing a header value", index+1)
+		}
+		headers[name] = value
+	}
+	return headers, nil
 }
 
 type OpenBaoProvider struct{}
