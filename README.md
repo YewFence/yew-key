@@ -16,8 +16,7 @@ a CLI to sync secrets from trusted managers into your local system keyring and l
 #### Mise
 
 ```bash
-# 仅在当前目录生效，如果需要安装到全局，请加上 -g 参数
-mise use github:YewFence/yew-key
+mise use -g github:YewFence/yew-key
 ```
 
 #### Go
