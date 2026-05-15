@@ -271,6 +271,31 @@ func TestProfileAddInteractive(t *testing.T) {
 	}
 }
 
+func TestOpenStorePassesConfiguredKeyringCollection(t *testing.T) {
+	var options keyringstore.OpenOptions
+	deps := runtimeDeps{
+		keyrings: fakeOpener{
+			store:   newMemoryStore(),
+			options: &options,
+		},
+	}
+	profile := appconfig.Profile{
+		Name:              "work",
+		KeyringService:    "custom-service",
+		KeyringCollection: "kdewallet",
+	}
+
+	if _, err := openStore(deps, profile); err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	if options.ServiceName != "custom-service" {
+		t.Fatalf("service name = %q, want custom-service", options.ServiceName)
+	}
+	if options.LibSecretCollectionName != "kdewallet" {
+		t.Fatalf("collection name = %q, want kdewallet", options.LibSecretCollectionName)
+	}
+}
+
 type fakeFactory struct {
 	providerName string
 	provider     provider.Provider
@@ -293,10 +318,14 @@ func (fake fakeProvider) Fetch(context.Context, appconfig.Profile) ([]provider.S
 }
 
 type fakeOpener struct {
-	store keyringstore.Store
+	store   keyringstore.Store
+	options *keyringstore.OpenOptions
 }
 
-func (opener fakeOpener) Open(string) (keyringstore.Store, error) {
+func (opener fakeOpener) Open(options keyringstore.OpenOptions) (keyringstore.Store, error) {
+	if opener.options != nil {
+		*opener.options = options
+	}
 	return opener.store, nil
 }
 

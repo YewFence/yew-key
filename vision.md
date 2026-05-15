@@ -34,13 +34,13 @@ yewk profile edit
 
 ## 3. 配置模型
 
-配置文件放在 XDG 目录下，建议使用 `$XDG_CONFIG_HOME/yewk/config.toml`，没有 XDG 环境变量时按平台约定回退。配置里只保存非敏感信息，例如 provider 类型、服务地址、项目编号、环境名、secret path、同步范围、变量名映射、keyring 后端偏好和 profile 名称。
+配置文件放在 XDG 目录下，建议使用 `$XDG_CONFIG_HOME/yewk/config.toml`，没有 XDG 环境变量时按平台约定回退。配置里只保存非敏感信息，例如 provider 类型、服务地址、项目编号、环境名、secret path、同步范围、变量名映射、keyring service name、可选 Secret Service collection 名称和 profile 名称。
 
 远端认证不写入 yewk 配置，也不写入 yewk keyring。Infisical token、OpenBao token、machine identity client secret、AppRole secret id 这些身份材料由用户自己通过官方 CLI、环境变量或外部命令准备，yewk 只在当前进程里读取它们。同步下来的业务 secret 值必须放进 keyring。状态文件可以放在 `$XDG_STATE_HOME/yewk/state.json`，只保存非敏感同步元数据，例如上次同步时间、ETag、远端版本号和已同步变量清单。
 
 配置建议从一开始就支持显式映射，避免把远端所有 key 无脑灌进 shell。
 
-`profile add` 默认进入交互式流程，逐步询问 profile 名称、provider、远端定位信息、keyring service name 和环境变量映射。命令行 flag 可以作为快捷输入，但不是主要体验。`profile edit` 使用 `$VISUAL` 或 `$EDITOR` 打开配置文件，两个环境变量都没有时再使用平台默认编辑器或给出配置文件路径。
+`profile add` 默认进入交互式流程，逐步询问 profile 名称、provider、远端定位信息、keyring service name 和环境变量映射。Secret Service collection 名称属于高级配置，只通过 `profile edit` 手动维护，不在交互式引导里询问。命令行 flag 可以作为快捷输入，但不是主要体验。`profile edit` 使用 `$VISUAL` 或 `$EDITOR` 打开配置文件，两个环境变量都没有时再使用平台默认编辑器或给出配置文件路径。
 
 ```toml
 [[profiles]]
@@ -112,7 +112,7 @@ OpenBao 使用官方 Go API `github.com/openbao/openbao/api/v2`。yewk 不实现
 
 keyring 层建议优先采用 `github.com/99designs/keyring`，它提供统一接口和 `Keys` 能力，并支持 macOS Keychain、Windows Credential Manager、Linux Secret Service、KWallet、Pass、加密文件和 KeyCtl。相比 `github.com/zalando/go-keyring`，它更适合这个项目后续同时支持桌面系统和无桌面 Linux。
 
-keyring 的 service name 固定默认为 `yewk`，item key 使用稳定命名空间。
+keyring 的 service name 固定默认为 `yewk`，Linux Secret Service 的 collection 默认不指定，让系统 keyring 按当前桌面环境选择默认位置；用户需要固定 collection 时，可以在 profile 里设置 `keyring_collection`。item key 使用稳定命名空间。
 
 ```text
 profiles/<profile>/env/<env_name>
@@ -121,7 +121,7 @@ profiles/<profile>/meta/index
 
 `meta/index` 只保存变量名、远端 key、provider、版本和更新时间，不保存 secret value。这样 `env` 命令可以先读 index，再逐项读取真正的 secret。删除同步项时，`sync --prune` 可以根据 index 移除远端已经不存在或配置里已经删掉的本地条目。
 
-Linux 上 Secret Service 依赖桌面会话和 D-Bus，服务器场景可能没有可用 keyring。这个工具应该允许用户选择 `pass` 或 encrypted file 后端，但默认仍优先系统原生后端，并在没有可用后端时给出明确错误。
+Linux 上 Secret Service 依赖桌面会话和 D-Bus，服务器场景可能没有可用 keyring。这个工具应该允许用户选择 `pass` 或 encrypted file 后端，但默认仍优先系统原生后端，并在没有可用后端时给出明确错误。Secret Service collection 名称只在用户显式配置时传给后端，默认不强行使用 `default`。
 
 ## 6. Shell 加载
 

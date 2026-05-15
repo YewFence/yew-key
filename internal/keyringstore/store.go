@@ -35,28 +35,42 @@ type Store interface {
 }
 
 type Opener interface {
-	Open(serviceName string) (Store, error)
+	Open(options OpenOptions) (Store, error)
+}
+
+type OpenOptions struct {
+	ServiceName             string
+	LibSecretCollectionName string
 }
 
 type DefaultOpener struct{}
 
-func (DefaultOpener) Open(serviceName string) (Store, error) {
-	ring, err := keyring.Open(keyring.Config{
+func (DefaultOpener) Open(options OpenOptions) (Store, error) {
+	config := keyringConfig(options)
+	ring, err := keyring.Open(config)
+	if err != nil {
+		return nil, fmt.Errorf("open keyring service %q: %w", options.ServiceName, err)
+	}
+	return StoreBackend{ring: ring}, nil
+}
+
+func keyringConfig(options OpenOptions) keyring.Config {
+	serviceName := options.ServiceName
+	config := keyring.Config{
 		ServiceName:              serviceName,
 		KeychainName:             serviceName,
 		KeychainTrustApplication: true,
 		KeychainSynchronizable:   false,
-		LibSecretCollectionName:  "default",
 		KeyCtlScope:              "user",
 		PassPrefix:               serviceName,
 		WinCredPrefix:            serviceName,
 		KeychainPasswordFunc:     keyring.TerminalPrompt,
 		FilePasswordFunc:         keyring.TerminalPrompt,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("open keyring service %q: %w", serviceName, err)
 	}
-	return StoreBackend{ring: ring}, nil
+	if options.LibSecretCollectionName != "" {
+		config.LibSecretCollectionName = options.LibSecretCollectionName
+	}
+	return config
 }
 
 type StoreBackend struct {

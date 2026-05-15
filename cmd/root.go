@@ -121,7 +121,10 @@ func cleanableProfile(profile appconfig.Profile) (appconfig.Profile, error) {
 }
 
 func openStore(deps runtimeDeps, profile appconfig.Profile) (keyringstore.Store, error) {
-	return deps.keyrings.Open(appconfig.DefaultKeyringService(profile))
+	return deps.keyrings.Open(keyringstore.OpenOptions{
+		ServiceName:             appconfig.DefaultKeyringService(profile),
+		LibSecretCollectionName: profile.KeyringCollection,
+	})
 }
 
 func updateProfileState(profileName string, mutate func(*appstate.ProfileState)) error {

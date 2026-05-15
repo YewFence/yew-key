@@ -45,6 +45,24 @@ func TestCleanProfileRemovesCachedSecretsAndIndex(t *testing.T) {
 	}
 }
 
+func TestKeyringConfigUsesCollectionOnlyWhenConfigured(t *testing.T) {
+	config := keyringConfig(OpenOptions{ServiceName: "yewk"})
+	if config.ServiceName != "yewk" || config.KeychainName != "yewk" || config.PassPrefix != "yewk" || config.WinCredPrefix != "yewk" {
+		t.Fatalf("keyring config did not use service name: %#v", config)
+	}
+	if config.LibSecretCollectionName != "" {
+		t.Fatalf("LibSecretCollectionName = %q, want empty", config.LibSecretCollectionName)
+	}
+
+	config = keyringConfig(OpenOptions{
+		ServiceName:             "yewk",
+		LibSecretCollectionName: "kdewallet",
+	})
+	if config.LibSecretCollectionName != "kdewallet" {
+		t.Fatalf("LibSecretCollectionName = %q, want kdewallet", config.LibSecretCollectionName)
+	}
+}
+
 type memoryKeyring struct {
 	items map[string]keyring.Item
 }

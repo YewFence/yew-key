@@ -16,12 +16,13 @@ type Config struct {
 }
 
 type Profile struct {
-	Name           string           `toml:"name"`
-	Provider       string           `toml:"provider"`
-	KeyringService string           `toml:"keyring_service,omitempty"`
-	Infisical      InfisicalProfile `toml:"infisical,omitempty"`
-	OpenBao        OpenBaoProfile   `toml:"openbao,omitempty"`
-	Env            []EnvMapping     `toml:"env,omitempty"`
+	Name              string           `toml:"name"`
+	Provider          string           `toml:"provider"`
+	KeyringService    string           `toml:"keyring_service,omitempty"`
+	KeyringCollection string           `toml:"keyring_collection,omitempty"`
+	Infisical         InfisicalProfile `toml:"infisical,omitempty"`
+	OpenBao           OpenBaoProfile   `toml:"openbao,omitempty"`
+	Env               []EnvMapping     `toml:"env,omitempty"`
 }
 
 type InfisicalProfile struct {

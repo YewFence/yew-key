@@ -125,6 +125,20 @@ remote_key = "DATABASE_URL"
 env_name = "DATABASE_URL"
 ```
 
+### 高级 keyring 配置
+
+默认情况下，yewk 不会指定 Linux Secret Service 的 collection 名称，而是让系统 keyring 按当前桌面环境选择默认位置。需要固定 collection 时，可以手动编辑配置文件并增加 `keyring_collection`。
+
+```toml
+[[profiles]]
+name = "work"
+provider = "infisical"
+keyring_service = "yewk"
+keyring_collection = "kdewallet"
+```
+
+`keyring_collection` 只影响 Linux Secret Service 后端的 collection 选择，交互式 `profile add` 不会询问这个字段。
+
 ## 安全边界
 
 1. yewk 只把业务 secret 的本地副本写入系统 keyring，不保存 Infisical token、OpenBao token、machine identity client secret 或 AppRole secret id。
